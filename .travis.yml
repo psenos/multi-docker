@@ -1,0 +1,23 @@
+sudo: required
+services:
+  - docker
+
+before_install:
+  - docker build -t psenos/react-test -f ./client/Dockerfile.dev ./client
+
+script:
+  - docker run -e CI=true psenos/react-test npm test
+
+after_success:
+  - docker build -t psenos/multi-client ./client
+  - docker build -t psenos/multi-nginx ./nginx
+  - docker build -t psenos/multi-server ./server
+  - docker build -t psenos/multi-worker ./worker
+  # Log in to the docker CLI
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
+  # Take those images and push them to docker hub
+  - docker push psenos/multi-client
+  - docker push psenos/multi-nginx
+  - docker push psenos/multi-server
+  - docker push psenos/multi-worker
+
