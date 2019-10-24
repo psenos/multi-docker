@@ -1,0 +1,91 @@
+version: '3'
+services:
+  traefik:
+    # The official v2.0 Traefik docker image
+    image: traefik:v2.0
+    # Enables the web UI and tells Traefik to listen to docker
+    command: --api.insecure=true --providers.docker
+    ports:
+      # The HTTP port
+      - "80:80"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    expose:
+      # traefik dashboard port
+      - 8080
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`traefik.localhost.com`)
+      # get md5 from htpasswd or http://www.htaccesstools.com/htpasswd-generator/
+      # and then double all $ to $$ to avoid docker-compose
+      - traefik.http.middlewares.traefik.basicauth.users=admin:$$apr1$$P/ncb7Ma$$7Xw99YzxX/f/NVH9s8erm0
+      - useBindPortIP=true
+      - traefik.http.services.traefik.loadbalancer.server.port=8080
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: "always"
+  postgres:
+    image: 'postgres:latest'
+    labels:
+      - "traefik.tcp.routers.postgres.rule=HostSNI(`postgres.docker.localhost`)"
+  redis:
+    image: 'redis:latest'
+  api:
+    depends_on:
+      - postgres
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./server
+    volumes:
+      - /app/node_modules
+      - ./server:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PGUSER=postgres
+      - PGHOST=postgres
+      - PGDATABASE=postgres
+      - PGPASSWORD=postgres_password
+      - PGPORT=5432
+    labels:
+      - useBindPortIP=true
+      - traefik.http.services.api.loadbalancer.server.port=5000
+      - traefik.http.routers.api.rule=Host(`client.localhost.com`) && Path(`/api`)
+      - traefik.http.middlewares.api.stripprefix.prefixes=/api
+  client:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./client
+    volumes:
+      - /app/node_modules
+      - ./client:/app
+    labels:
+      - useBindPortIP=true
+      - traefik.http.services.client.loadbalancer.server.port=3000
+      - traefik.http.routers.client.rule=Host(`client.localhost.com`)
+  worker:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./worker
+    volumes:
+      - /app/node_modules
+      - ./worker:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    labels:
+      - traefik.enable=false
+#  nginx:
+#    restart: always
+#    build:
+#      dockerfile: Dockerfile.dev
+#      context: ./nginx
+#    ports:
+#      - '3050:80'
+  whoami:
+    # A container that exposes an API to show its IP address
+    image: containous/whoami
+    labels:
+      - traefik.http.routers.whoami.rule=Host(`whoami.localhost.com`)
