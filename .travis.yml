@@ -21,3 +21,17 @@ after_success:
   - docker push psenos/multi-server
   - docker push psenos/multi-worker
 
+deploy:
+  provider: elasticbeanstalk
+  region: "eu-west-2"
+  app: multi-docker
+  env: MultiDocker-env
+  bucket_name: elasticbeanstalk-eu-west-2-407650093102
+  bucket_path: docker-multi
+  on:
+    branch: master
+  aceess_key_id: 
+    secure: $AWS_ACCESS_KEY
+  secret_access_key:
+    secure: $AWS_SECRET_KEY
+
